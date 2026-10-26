@@ -141,14 +141,17 @@ function makeRow(birthday) {
   return row;
 }
 
-async function loadBirthdays() {
+async function loadBirthdays({ upsert = null, removedNumber = null } = {}) {
   if (loading) return;
   loading = true;
   refreshButton.disabled = true;
   listState.hidden = false;
   listState.textContent = "Loading birthdays…";
   try {
-    const birthdays = sortBirthdays(await listBirthdayIssues(), todayInKarachi(), config.label);
+    let issues = await listBirthdayIssues();
+    if (upsert) issues = [...issues.filter((issue) => issue.number !== upsert.number), upsert];
+    if (removedNumber) issues = issues.filter((issue) => issue.number !== removedNumber);
+    const birthdays = sortBirthdays(issues, todayInKarachi(), config.label);
     list.replaceChildren(...birthdays.map(makeRow));
     if (birthdays.length) listState.hidden = true;
     else showEmptyState();
@@ -208,10 +211,11 @@ async function saveBirthday() {
   setFormStatus("Saving birthday…");
   const wasEditing = Boolean(editing);
   try {
-    if (wasEditing) await updateBirthday(editing.number, birthday);
-    else await createBirthday(birthday);
+    const savedIssue = wasEditing
+      ? await updateBirthday(editing.number, birthday)
+      : await createBirthday(birthday);
     clearEdit();
-    await loadBirthdays();
+    await loadBirthdays({ upsert: savedIssue });
     setFormStatus(wasEditing ? "Birthday updated." : "Birthday added.");
   } catch (error) {
     updateConnectionUi();
@@ -237,9 +241,10 @@ removeButton.addEventListener("click", async () => {
   removeButton.disabled = true;
   setFormStatus("Removing birthday…");
   try {
-    await closeBirthday(editing.number);
+    const removedNumber = editing.number;
+    await closeBirthday(removedNumber);
     clearEdit();
-    await loadBirthdays();
+    await loadBirthdays({ removedNumber });
     setFormStatus("Birthday removed.");
   } catch (error) {
     updateConnectionUi();
