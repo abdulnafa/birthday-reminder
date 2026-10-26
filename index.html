@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#fffcf7">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://api.github.com; base-uri 'self'; object-src 'none'; form-action 'self'">
+    <meta name="description" content="Keep birthdays in one place, with reminders at 12:01 AM and 12:00 PM Pakistan time.">
+    <title>Birthday Reminder</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="Birthday Reminder home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 54 54" fill="none"><rect x="3" y="9" width="48" height="43" rx="10" fill="#FFE8DA"/><path d="M3 20h48" stroke="#F58E70" stroke-width="5"/><path d="M17 5v9M38 5v9" stroke="#185262" stroke-width="3" stroke-linecap="round"/><circle cx="27" cy="34" r="8" fill="#FDBE5D"/><path d="M27 23v-3M27 48v-3M15 34h-3M42 34h-3M18.5 25.5l-2-2M37.5 44.5l-2-2M35.5 25.5l2-2M16.5 44.5l2-2" stroke="#F89C54" stroke-width="2" stroke-linecap="round"/></svg>
+          </span>
+          <span>Birthday Reminder</span>
+        </a>
+        <button class="account-link" id="connection-button" type="button" aria-label="GitHub connection" title="GitHub connection">a</button>
+      </header>
+
+      <main id="main">
+        <section class="hero" aria-labelledby="hero-heading">
+          <div class="hero-copy">
+            <h1 id="hero-heading">Remember <span>every</span> birthday.</h1>
+            <p>Add a name and date. Keep every birthday in view.</p>
+          </div>
+          <img class="hero-cake" src="./assets/birthday-cake.png" alt="" width="320" height="320" decoding="sync" fetchpriority="high">
+        </section>
+
+        <div class="workspace">
+          <section class="panel add-panel" aria-labelledby="add-title">
+            <h2 id="add-title">Add birthday</h2>
+            <form id="birthday-form" novalidate>
+              <label for="name">Name</label>
+              <input id="name" name="name" type="text" placeholder="Enter a name" autocomplete="off" maxlength="80" required>
+
+              <fieldset>
+                <legend>Birthday</legend>
+                <div class="date-fields">
+                  <div class="select-wrap">
+                    <select id="day" name="day" aria-label="Day" required>
+                      <option value="">Day</option>
+                    </select>
+                  </div>
+                  <div class="select-wrap">
+                    <select id="month" name="month" aria-label="Month" required>
+                      <option value="">Month</option>
+                      <option value="1">Jan</option><option value="2">Feb</option><option value="3">Mar</option>
+                      <option value="4">Apr</option><option value="5">May</option><option value="6">Jun</option>
+                      <option value="7">Jul</option><option value="8">Aug</option><option value="9">Sep</option>
+                      <option value="10">Oct</option><option value="11">Nov</option><option value="12">Dec</option>
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
+
+              <button class="primary-button" id="submit-button" type="submit">Add birthday</button>
+              <div class="edit-actions" id="edit-actions" hidden>
+                <button class="text-button" id="cancel-edit" type="button">Cancel edit</button>
+                <button class="text-button danger-button" id="remove-birthday" type="button">Remove birthday</button>
+              </div>
+              <div class="connection-inline">
+                <button class="connection-action" id="open-connection" type="button">Connect GitHub</button>
+                <span id="connection-copy">Connect once to add and edit directly here.</span>
+              </div>
+              <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+            </form>
+          </section>
+
+          <section class="panel list-panel" aria-labelledby="upcoming-title">
+            <div class="list-heading">
+              <h2 id="upcoming-title">Upcoming birthdays</h2>
+              <button class="refresh-button" id="refresh-button" type="button" aria-label="Refresh birthdays" title="Refresh birthdays">
+                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.2 9A7.5 7.5 0 0 0 6.3 6.1L4 8.4M4 4.8v3.6h3.6M4.8 15A7.5 7.5 0 0 0 17.7 17.9l2.3-2.3M20 19.2v-3.6h-3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+            <div class="list-state" id="list-state" role="status" aria-live="polite">Loading birthdays…</div>
+            <ul class="birthday-list" id="birthday-list" aria-label="Upcoming birthdays"></ul>
+          </section>
+        </div>
+
+        <section class="reminder-strip" aria-labelledby="reminders-title">
+          <div class="reminder-heading">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8ZM10 20a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h2 id="reminders-title">Email reminders</h2>
+          </div>
+          <div class="time-chip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Birthday day · 12:01 AM</span></div>
+          <div class="time-chip"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="m4 7 8 6 8-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Birthday day · 12:00 PM</span></div>
+          <div class="recipient"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="m3 7 9 6 9-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="recipient"></span></div>
+          <p class="email-state" id="email-state"></p>
+        </section>
+        <p class="timezone-note">All reminder times are Pakistan time (PKT). Birthdays are stored in a public GitHub repository.</p>
+      </main>
+    </div>
+
+    <dialog class="connection-dialog" id="connection-dialog" aria-labelledby="connection-title">
+      <form id="connection-form">
+        <div class="dialog-heading">
+          <h2 id="connection-title">Connect GitHub</h2>
+          <button class="dialog-close" id="close-connection" type="button" aria-label="Close connection dialog">×</button>
+        </div>
+        <p>Use a fine-grained personal access token with <strong>Issues: Read and write</strong>. On GitHub, choose <strong>Only select repositories</strong> and select <strong id="repo-name">birthday-reminder</strong>.</p>
+        <label for="github-token">GitHub token</label>
+        <input id="github-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste token here" required>
+        <p class="token-note">Saved only in this browser. Use a device you trust. Never share the token.</p>
+        <p class="dialog-status" id="dialog-status" role="status" aria-live="polite"></p>
+        <button class="primary-button dialog-submit" id="save-connection" type="submit">Save connection</button>
+        <div class="dialog-links">
+          <a id="create-token-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Create a token on GitHub ↗</a>
+          <button class="text-button danger-button" id="disconnect-button" type="button" hidden>Remove saved token</button>
+        </div>
+      </form>
+    </dialog>
+  </body>
+</html>
