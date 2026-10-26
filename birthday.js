@@ -13,23 +13,16 @@ export function isValidBirthday(month, day) {
   return Number.isInteger(m) && Number.isInteger(d) && m >= 1 && m <= 12 && d >= 1 && d <= new Date(Date.UTC(2000, m, 0)).getUTCDate();
 }
 
-export function parseBirthdayIssue(issue, label = "birthday") {
-  if (!issue || issue.pull_request || (issue.state && issue.state !== "open")) return null;
-  const labeled = Array.isArray(issue.labels) && issue.labels.some((item) =>
-    (typeof item === "string" ? item : item?.name)?.toLowerCase() === label.toLowerCase()
-  );
-  if (!labeled) return null;
-
-  const name = normalizeName(issue.title);
-  const birthdayLines = typeof issue.body === "string"
-    ? [...issue.body.matchAll(/^Birthday:\s*(\d{2})-(\d{2})\s*$/gim)]
-    : [];
-  if (!name || birthdayLines.length !== 1) return null;
-  const birthdayLine = birthdayLines[0];
-  const month = Number(birthdayLine[1]);
-  const day = Number(birthdayLine[2]);
-  if (!isValidBirthday(month, day) || !Number.isSafeInteger(issue.number) || issue.number < 1) return null;
-  return { name, month, day, number: issue.number };
+export function parseBirthdayRecord(record) {
+  if (!record) return null;
+  const id = typeof record.id === "string" && record.id.trim()
+    ? record.id.trim()
+    : Number.isSafeInteger(record.id) && record.id > 0 ? String(record.id) : null;
+  const name = normalizeName(record.name);
+  const month = Number(record.month);
+  const day = Number(record.day);
+  if (!id || !name || !isValidBirthday(month, day)) return null;
+  return { id, name, month, day };
 }
 
 export function todayInKarachi(date = new Date()) {
@@ -63,9 +56,9 @@ export function nextOccurrence(month, day, today = todayInKarachi()) {
   return { ...occurrence, daysUntil: Math.round((stamp - todayStamp) / 86400000) };
 }
 
-export function sortBirthdays(issues, today = todayInKarachi(), label = "birthday") {
-  return issues
-    .map((issue) => parseBirthdayIssue(issue, label))
+export function sortBirthdays(records, today = todayInKarachi()) {
+  return records
+    .map(parseBirthdayRecord)
     .filter(Boolean)
     .map((birthday) => ({ ...birthday, next: nextOccurrence(birthday.month, birthday.day, today) }))
     .sort((a, b) => a.next.daysUntil - b.next.daysUntil || a.name.localeCompare(b.name));

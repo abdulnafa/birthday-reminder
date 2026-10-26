@@ -2,6 +2,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test birthday.test.js github.test.js"
+    "test": "node --test birthday.test.js api.test.js"
   }
 }

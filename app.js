@@ -4,9 +4,9 @@ import {
   sortBirthdays, todayInKarachi,
 } from "./birthday.js";
 import {
-  closeBirthday, connectGitHub, createBirthday, getSavedToken,
-  listBirthdayIssues, removeSavedToken, updateBirthday,
-} from "./github.js";
+  createBirthday, deleteBirthday, getEditingPassword, listBirthdays,
+  lockEditing, unlockEditing, updateBirthday,
+} from "./api.js";
 
 const $ = (id) => document.getElementById(id);
 const form = $("birthday-form");
@@ -17,18 +17,18 @@ const formStatus = $("form-status");
 const list = $("birthday-list");
 const listState = $("list-state");
 const refreshButton = $("refresh-button");
-const connectionDialog = $("connection-dialog");
-const tokenInput = $("github-token");
+const unlockDialog = $("connection-dialog");
+const passwordInput = $("edit-password");
 const dialogStatus = $("dialog-status");
-const connectionButton = $("connection-button");
-const connectInline = $("open-connection");
+const unlockButton = $("connection-button");
+const unlockInline = $("open-connection");
 const submitButton = $("submit-button");
 const removeButton = $("remove-birthday");
 let editing = null;
 let saving = false;
-let loading = false;
+let activeLoad = null;
 let lastLoadedAt = 0;
-let saveAfterConnect = false;
+let pendingAction = null;
 
 function setFormStatus(message, isError = false) {
   formStatus.textContent = message;
@@ -49,25 +49,26 @@ function setDayOptions() {
   daySelect.value = Number(previous) <= maxDay ? previous : "";
 }
 
-function updateConnectionUi() {
-  const connected = Boolean(getSavedToken());
-  connectionButton.classList.toggle("is-connected", connected);
-  connectionButton.setAttribute("aria-label", connected ? "Manage GitHub connection" : "Connect GitHub");
-  connectionButton.title = connected ? "Manage GitHub connection" : "Connect GitHub";
-  connectInline.textContent = connected ? "Manage GitHub" : "Connect GitHub";
-  $("connection-copy").textContent = connected
-    ? "Connected in this browser. Add and edit directly here."
-    : "Connect once to add and edit directly here.";
-  $("disconnect-button").hidden = !connected;
-  $("save-connection").textContent = connected ? "Replace connection" : "Save connection";
+function updateUnlockUi() {
+  const unlocked = Boolean(getEditingPassword());
+  unlockButton.classList.toggle("is-connected", unlocked);
+  unlockButton.setAttribute("aria-label", unlocked ? "Manage editing lock" : "Unlock editing");
+  unlockButton.title = unlocked ? "Manage editing lock" : "Unlock editing";
+  unlockInline.textContent = unlocked ? "Editing unlocked" : "Unlock editing";
+  $("connection-copy").textContent = unlocked
+    ? "You can add and edit birthdays in this tab."
+    : "Enter your password once to add and edit here.";
+  $("disconnect-button").hidden = !unlocked;
+  $("save-connection").textContent = unlocked ? "Change password" : "Unlock editing";
+  $("connection-title").textContent = unlocked ? "Manage editing" : "Unlock editing";
 }
 
-function openConnection() {
-  updateConnectionUi();
-  tokenInput.value = "";
+function openUnlockDialog() {
+  updateUnlockUi();
+  passwordInput.value = "";
   setDialogStatus("");
-  connectionDialog.showModal();
-  tokenInput.focus();
+  if (!unlockDialog.open) unlockDialog.showModal();
+  passwordInput.focus();
 }
 
 function clearEdit() {
@@ -141,17 +142,15 @@ function makeRow(birthday) {
   return row;
 }
 
-async function loadBirthdays({ upsert = null, removedNumber = null } = {}) {
-  if (loading) return;
-  loading = true;
+async function fetchAndRenderBirthdays({ upsert = null, removedId = null } = {}) {
   refreshButton.disabled = true;
   listState.hidden = false;
-  listState.textContent = "Loading birthdays…";
+  listState.textContent = "Loading birthdays...";
   try {
-    let issues = await listBirthdayIssues();
-    if (upsert) issues = [...issues.filter((issue) => issue.number !== upsert.number), upsert];
-    if (removedNumber) issues = issues.filter((issue) => issue.number !== removedNumber);
-    const birthdays = sortBirthdays(issues, todayInKarachi(), config.label);
+    let records = await listBirthdays();
+    if (upsert) records = [...records.filter((record) => String(record.id) !== String(upsert.id)), upsert];
+    if (removedId !== null) records = records.filter((record) => String(record.id) !== String(removedId));
+    const birthdays = sortBirthdays(records, todayInKarachi());
     list.replaceChildren(...birthdays.map(makeRow));
     if (birthdays.length) listState.hidden = true;
     else showEmptyState();
@@ -161,10 +160,20 @@ async function loadBirthdays({ upsert = null, removedNumber = null } = {}) {
     listState.hidden = false;
   } finally {
     lastLoadedAt = Date.now();
-    loading = false;
     refreshButton.disabled = false;
-    updateConnectionUi();
+    updateUnlockUi();
   }
+}
+
+async function loadBirthdays(options = {}) {
+  if (activeLoad) {
+    if (!options.upsert && options.removedId === undefined) return;
+    await activeLoad;
+  }
+  const task = fetchAndRenderBirthdays(options);
+  activeLoad = task;
+  try { await task; }
+  finally { if (activeLoad === task) activeLoad = null; }
 }
 
 function refreshOnReturn() {
@@ -199,27 +208,58 @@ async function saveBirthday() {
   if (saving) return;
   const birthday = readForm();
   if (!birthday) return;
-  if (!getSavedToken()) {
-    saveAfterConnect = true;
-    setFormStatus("Connect GitHub once to save birthdays here.");
-    openConnection();
+  if (!getEditingPassword()) {
+    pendingAction = "save";
+    setFormStatus("Unlock editing once to save birthdays here.");
+    openUnlockDialog();
     return;
   }
   saving = true;
   submitButton.disabled = true;
   removeButton.disabled = true;
-  setFormStatus("Saving birthday…");
+  setFormStatus("Saving birthday...");
   const wasEditing = Boolean(editing);
   try {
-    const savedIssue = wasEditing
-      ? await updateBirthday(editing.number, birthday)
+    const saved = wasEditing
+      ? await updateBirthday(editing.id, birthday)
       : await createBirthday(birthday);
     clearEdit();
-    await loadBirthdays({ upsert: savedIssue });
+    await loadBirthdays({ upsert: saved });
     setFormStatus(wasEditing ? "Birthday updated." : "Birthday added.");
   } catch (error) {
-    updateConnectionUi();
+    updateUnlockUi();
     setFormStatus(error instanceof Error ? error.message : "Could not save birthday.", true);
+    if (error?.status === 401) { pendingAction = "save"; openUnlockDialog(); }
+  } finally {
+    saving = false;
+    submitButton.disabled = false;
+    removeButton.disabled = false;
+  }
+}
+
+async function removeBirthday({ confirmed = false } = {}) {
+  if (!editing || saving) return;
+  if (!confirmed && !window.confirm(`Remove ${editing.name}'s birthday from reminders?`)) return;
+  if (!getEditingPassword()) {
+    pendingAction = "remove";
+    setFormStatus("Unlock editing to remove this birthday.");
+    openUnlockDialog();
+    return;
+  }
+  saving = true;
+  submitButton.disabled = true;
+  removeButton.disabled = true;
+  setFormStatus("Removing birthday...");
+  try {
+    const removedId = editing.id;
+    await deleteBirthday(removedId);
+    clearEdit();
+    await loadBirthdays({ removedId });
+    setFormStatus("Birthday removed.");
+  } catch (error) {
+    updateUnlockUi();
+    setFormStatus(error instanceof Error ? error.message : "Could not remove birthday.", true);
+    if (error?.status === 401) { pendingAction = "remove"; openUnlockDialog(); }
   } finally {
     saving = false;
     submitButton.disabled = false;
@@ -229,77 +269,49 @@ async function saveBirthday() {
 
 form.addEventListener("submit", (event) => { event.preventDefault(); saveBirthday(); });
 monthSelect.addEventListener("change", setDayOptions);
-refreshButton.addEventListener("click", loadBirthdays);
+refreshButton.addEventListener("click", () => loadBirthdays());
 window.addEventListener("focus", refreshOnReturn);
 document.addEventListener("visibilitychange", refreshOnReturn);
 $("cancel-edit").addEventListener("click", () => { clearEdit(); setFormStatus(""); });
-removeButton.addEventListener("click", async () => {
-  if (!editing || saving || !window.confirm(`Remove ${editing.name}'s birthday from reminders?`)) return;
-  if (!getSavedToken()) { openConnection(); return; }
-  saving = true;
-  submitButton.disabled = true;
-  removeButton.disabled = true;
-  setFormStatus("Removing birthday…");
-  try {
-    const removedNumber = editing.number;
-    await closeBirthday(removedNumber);
-    clearEdit();
-    await loadBirthdays({ removedNumber });
-    setFormStatus("Birthday removed.");
-  } catch (error) {
-    updateConnectionUi();
-    setFormStatus(error instanceof Error ? error.message : "Could not remove birthday.", true);
-  } finally {
-    saving = false;
-    submitButton.disabled = false;
-    removeButton.disabled = false;
-  }
-});
+removeButton.addEventListener("click", () => removeBirthday());
 
-connectionButton.addEventListener("click", openConnection);
-connectInline.addEventListener("click", openConnection);
-$("close-connection").addEventListener("click", () => connectionDialog.close());
-connectionDialog.addEventListener("close", () => { saveAfterConnect = false; });
+unlockButton.addEventListener("click", openUnlockDialog);
+unlockInline.addEventListener("click", openUnlockDialog);
+$("close-connection").addEventListener("click", () => unlockDialog.close());
+unlockDialog.addEventListener("close", () => { pendingAction = null; });
 $("connection-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const saveButton = $("save-connection");
-  saveButton.disabled = true;
-  setDialogStatus("Checking token…");
+  const button = $("save-connection");
+  button.disabled = true;
+  setDialogStatus("Checking password...");
   try {
-    await connectGitHub(tokenInput.value);
-    updateConnectionUi();
-    const shouldSave = saveAfterConnect;
-    saveAfterConnect = false;
-    connectionDialog.close();
-    tokenInput.value = "";
-    setFormStatus("GitHub connected. You can save birthdays here.");
-    if (shouldSave) await saveBirthday();
+    await unlockEditing(passwordInput.value);
+    updateUnlockUi();
+    const requested = pendingAction;
+    pendingAction = null;
+    unlockDialog.close();
+    passwordInput.value = "";
+    setFormStatus("Editing unlocked for this tab.");
+    if (requested === "save") await saveBirthday();
+    if (requested === "remove") await removeBirthday({ confirmed: true });
   } catch (error) {
-    setDialogStatus(error instanceof Error ? error.message : "Could not connect GitHub.", true);
+    setDialogStatus(error instanceof Error ? error.message : "Could not unlock editing.", true);
   } finally {
-    saveButton.disabled = false;
+    button.disabled = false;
   }
 });
 $("disconnect-button").addEventListener("click", () => {
-  removeSavedToken();
-  updateConnectionUi();
-  connectionDialog.close();
-  setFormStatus("GitHub connection removed from this browser.");
+  lockEditing();
+  updateUnlockUi();
+  unlockDialog.close();
+  setFormStatus("Editing locked for this tab.");
 });
 
-const tokenUrl = new URL("https://github.com/settings/personal-access-tokens/new");
-tokenUrl.searchParams.set("name", "Birthday Reminder");
-tokenUrl.searchParams.set("target_name", config.owner);
-tokenUrl.searchParams.set("expires_in", "none");
-tokenUrl.searchParams.set("issues", "write");
-$("create-token-link").href = tokenUrl.toString();
-connectionButton.textContent = config.owner.charAt(0).toLocaleLowerCase();
-$("repo-name").textContent = config.repo;
 $("recipient").textContent = config.recipient;
 $("email-state").textContent = config.emailEnabled
   ? "Email delivery is active."
   : "Email delivery is awaiting setup.";
 $("email-state").classList.toggle("is-ready", config.emailEnabled);
-updateConnectionUi();
+updateUnlockUi();
 setDayOptions();
 loadBirthdays();

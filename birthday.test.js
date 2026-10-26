@@ -1,16 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  isValidBirthday, nextOccurrence, parseBirthdayIssue,
+  isValidBirthday, nextOccurrence, parseBirthdayRecord,
   sortBirthdays, todayInKarachi,
 } from "./birthday.js";
 
-const issue = (overrides = {}) => ({
-  number: 12,
-  title: "Ayesha",
-  body: "Birthday: 11-14",
-  state: "open",
-  labels: [{ name: "birthday" }],
+const record = (overrides = {}) => ({
+  id: "birthday-12",
+  name: "Ayesha",
+  month: 11,
+  day: 14,
   ...overrides,
 });
 
@@ -21,13 +20,11 @@ test("accepts leap day and rejects dates that do not exist", () => {
   assert.equal(isValidBirthday(12, 31), true);
 });
 
-test("parses only open labeled birthday issues with the expected date line", () => {
-  assert.deepEqual(parseBirthdayIssue(issue()), { name: "Ayesha", month: 11, day: 14, number: 12 });
-  assert.equal(parseBirthdayIssue(issue({ labels: [{ name: "bug" }] })), null);
-  assert.equal(parseBirthdayIssue(issue({ body: "Birthday: 11-31" })), null);
-  assert.equal(parseBirthdayIssue(issue({ body: "Birthday: 11-14\nBirthday: 12-14" })), null);
-  assert.equal(parseBirthdayIssue(issue({ pull_request: {} })), null);
-  assert.equal(parseBirthdayIssue(issue({ state: "closed" })), null);
+test("parses only well-formed birthday records", () => {
+  assert.deepEqual(parseBirthdayRecord(record()), { id: "birthday-12", name: "Ayesha", month: 11, day: 14 });
+  assert.equal(parseBirthdayRecord(record({ id: "" })), null);
+  assert.equal(parseBirthdayRecord(record({ month: 11, day: 31 })), null);
+  assert.equal(parseBirthdayRecord(record({ name: "" })), null);
 });
 
 test("uses Pakistan calendar date across a UTC day boundary", () => {
@@ -38,9 +35,9 @@ test("uses Pakistan calendar date across a UTC day boundary", () => {
 
 test("sorts by next birthday and rolls into the next year", () => {
   const birthdays = sortBirthdays([
-    issue({ number: 1, title: "Next year", body: "Birthday: 01-01" }),
-    issue({ number: 2, title: "Today", body: "Birthday: 12-31" }),
-    issue({ number: 3, title: "Tomorrow", body: "Birthday: 01-01" }),
+    record({ id: "1", name: "Next year", month: 1, day: 1 }),
+    record({ id: "2", name: "Today", month: 12, day: 31 }),
+    record({ id: "3", name: "Tomorrow", month: 1, day: 1 }),
   ], { year: 2026, month: 12, day: 31 });
   assert.equal(birthdays[0].name, "Today");
   assert.equal(birthdays[0].next.daysUntil, 0);

@@ -1,19 +1,19 @@
 # Birthday Reminder web app
 
-This is a static GitHub Pages app. It reads open GitHub Issues labeled `birthday` from the repository in `config.js`. Each issue title is the person's name, and its body contains one line such as `Birthday: 02-29`. Names and dates are public because the repository is public.
+This is a static web app for GitHub Pages. The page reads birthday entries from the [reminder API](https://birthday-reminder-api-nafa.kypsamar.chatgpt.site). Viewing the list needs no login. Each entry contains a name, month, and day.
 
-## One-time GitHub connection
+## Editing
 
-The owner opens **Connect GitHub** in the app and creates a fine-grained personal access token. On GitHub, choose **Only select repositories**, select **birthday-reminder**, and grant **Issues: Read and write**. Paste the token into the app once. The token stays in that browser's local storage; it is never placed in the site's source, a URL, this repository, or chat. The app can remove it with **Manage GitHub → Remove saved token**.
+The owner enters the editing password in **Unlock editing** once per browser tab. The app checks it with `POST /api/unlock` and keeps it in `sessionStorage` for that tab. Unlocking and protected changes send the password only in the `X-Edit-Password` request header. It is never included in a URL or this repository. **Lock editing** clears the tab's saved password.
 
-After connection, the owner can add, edit, and remove birthdays directly in the app. Removing one closes its GitHub Issue. The app still shows public birthdays without a token. `github.js` contains the GitHub data adapter, so authenticated writes can be moved to a hosted API later without rebuilding the interface.
+After unlocking, the owner can add, edit, and remove birthdays directly on the page. No GitHub account or token is needed for daily use. The app does not store a sample birthday as real data.
 
 ## Email delivery
 
-The UI shows the confirmed reminder times on the birthday's date: **12:01 AM** and **12:00 PM**, both Pakistan time (`Asia/Karachi`). The recipient is `developerabdulnafa@gmail.com`. Keep `emailEnabled` in `config.js` set to `false` until the Gmail scheduler has been configured and a live email send has been verified.
+The two reminder times are on the birthday's date: **12:01 AM** and **12:00 PM**, both Pakistan time (`Asia/Karachi`). The recipient is `developerabdulnafa@gmail.com`. Keep `emailEnabled` in `config.js` set to `false` until the Gmail scheduler is configured and a live email send is verified.
 
 February 29 birthdays are observed on February 28 in non-leap years. The list uses Pakistan's calendar date for sorting and countdowns.
 
 ## Check the browser code
 
-With Node.js installed, run `node --test birthday.test.js github.test.js` from this directory. The app has no build step or runtime package dependencies.
+With Node.js installed, run `node --test birthday.test.js api.test.js` from this directory. The app has no build step or runtime package dependencies.
