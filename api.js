@@ -77,7 +77,9 @@ export async function unlockEditing(password) {
 }
 
 export async function listBirthdays() {
-  const data = await request("/api/birthdays");
+  const password = getEditingPassword();
+  if (!password) throw new BirthdayApiError("Unlock to view birthdays.", 401);
+  const data = await request("/api/birthdays", { password });
   if (!data || !Array.isArray(data.birthdays)) throw new BirthdayApiError("The birthday service returned an unexpected response.");
   return data.birthdays;
 }

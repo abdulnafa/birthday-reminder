@@ -67,7 +67,7 @@
               </div>
               <div class="connection-inline">
                 <button class="connection-action" id="open-connection" type="button">Unlock editing</button>
-                <span id="connection-copy">Enter your password once to add and edit here.</span>
+                <span id="connection-copy">Enter your password to view and edit birthdays.</span>
               </div>
               <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
             </form>
@@ -76,11 +76,11 @@
           <section class="panel list-panel" aria-labelledby="upcoming-title">
             <div class="list-heading">
               <h2 id="upcoming-title">Upcoming birthdays</h2>
-              <button class="refresh-button" id="refresh-button" type="button" aria-label="Refresh birthdays" title="Refresh birthdays">
+              <button class="refresh-button" id="refresh-button" type="button" aria-label="Refresh birthdays" title="Refresh birthdays" disabled>
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.2 9A7.5 7.5 0 0 0 6.3 6.1L4 8.4M4 4.8v3.6h3.6M4.8 15A7.5 7.5 0 0 0 17.7 17.9l2.3-2.3M20 19.2v-3.6h-3.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
             </div>
-            <div class="list-state" id="list-state" role="status" aria-live="polite">Loading birthdays…</div>
+            <div class="list-state" id="list-state" role="status" aria-live="polite">Birthday list locked. Unlock to view birthdays.</div>
             <ul class="birthday-list" id="birthday-list" aria-label="Upcoming birthdays"></ul>
           </section>
         </div>
@@ -95,7 +95,7 @@
           <div class="recipient"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="m3 7 9 6 9-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="recipient"></span></div>
           <p class="email-state" id="email-state"></p>
         </section>
-        <p class="timezone-note">All reminder times are Pakistan time (PKT). Birthday entries are publicly viewable.</p>
+        <p class="timezone-note">All reminder times are Pakistan time (PKT). The birthday list opens after password unlock.</p>
       </main>
     </div>
 
@@ -105,7 +105,7 @@
           <h2 id="connection-title">Unlock editing</h2>
           <button class="dialog-close" id="close-connection" type="button" aria-label="Close unlock dialog">&times;</button>
         </div>
-        <p>Enter the editing password to add, change, or remove birthdays. The list is available without unlocking.</p>
+        <p>Enter the editing password to view, add, change, or remove birthdays. The list stays hidden until unlocked.</p>
         <label for="edit-password">Editing password</label>
         <input id="edit-password" type="password" autocomplete="off" spellcheck="false" placeholder="Enter password" required>
         <p class="token-note">Kept only for this tab's session. Lock editing to clear it.</p>

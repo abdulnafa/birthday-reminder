@@ -25,14 +25,33 @@ const json = (value, status = 200) => new Response(JSON.stringify(value), {
 const noContent = () => new Response(null, { status: 204 });
 const sample = { id: "birthday-12", name: "Ayesha", month: 11, day: 14 };
 
-test("loads the public birthday list without an editing password", async () => {
+test("never requests birthdays before the password is unlocked", async () => {
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; return json({ birthdays: [sample] }); };
+  await assert.rejects(listBirthdays(), { name: "BirthdayApiError", status: 401 });
+  assert.equal(requests, 0);
+});
+
+test("loads birthdays only with the saved password in the request header", async () => {
+  values.set("birthday-reminder:edit-password:v1", "example-test-password");
   globalThis.fetch = async (url, options) => {
     assert.equal(String(url), "https://birthday-reminder-api-nafa.kypsamar.chatgpt.site/api/birthdays");
     assert.equal(options.method, "GET");
-    assert.equal(options.headers["X-Edit-Password"], undefined);
+    assert.equal(options.headers["X-Edit-Password"], "example-test-password");
+    assert.ok(!String(url).includes("example-test-password"));
     return json({ birthdays: [sample] });
   };
   assert.deepEqual(await listBirthdays(), [sample]);
+});
+
+test("an unauthorized birthday list clears the saved password", async () => {
+  values.set("birthday-reminder:edit-password:v1", "expired-test-password");
+  globalThis.fetch = async (_url, options) => {
+    assert.equal(options.headers["X-Edit-Password"], "expired-test-password");
+    return json({ error: "Unauthorized" }, 401);
+  };
+  await assert.rejects(listBirthdays(), { name: "BirthdayApiError", status: 401 });
+  assert.equal(getEditingPassword(), null);
 });
 
 test("verifies the password before keeping it in session storage", async () => {

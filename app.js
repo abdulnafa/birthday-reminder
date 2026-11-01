@@ -27,6 +27,7 @@ const removeButton = $("remove-birthday");
 let editing = null;
 let saving = false;
 let activeLoad = null;
+let listEpoch = 0;
 let lastLoadedAt = 0;
 let pendingAction = null;
 
@@ -56,8 +57,8 @@ function updateUnlockUi() {
   unlockButton.title = unlocked ? "Manage editing lock" : "Unlock editing";
   unlockInline.textContent = unlocked ? "Editing unlocked" : "Unlock editing";
   $("connection-copy").textContent = unlocked
-    ? "You can add and edit birthdays in this tab."
-    : "Enter your password once to add and edit here.";
+    ? "Your birthday list is visible in this tab."
+    : "Enter your password to view and edit birthdays.";
   $("disconnect-button").hidden = !unlocked;
   $("save-connection").textContent = unlocked ? "Change password" : "Unlock editing";
   $("connection-title").textContent = unlocked ? "Manage editing" : "Unlock editing";
@@ -114,6 +115,45 @@ function showEmptyState() {
   listState.hidden = false;
 }
 
+function showLockedState() {
+  listState.replaceChildren();
+  const wrapper = document.createElement("div");
+  wrapper.className = "empty-state";
+  const icon = document.createElement("div");
+  icon.className = "empty-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = '<svg viewBox="0 0 32 32" fill="none"><rect x="6" y="14" width="20" height="15" rx="3" stroke="currentColor" stroke-width="1.7"/><path d="M10 14V9a6 6 0 0 1 12 0v5M16 20v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  const heading = document.createElement("h3");
+  heading.textContent = "Birthday list locked";
+  const copy = document.createElement("p");
+  copy.textContent = "Enter your password to view birthdays in this tab.";
+  const button = document.createElement("button");
+  button.className = "connection-action locked-unlock";
+  button.type = "button";
+  button.textContent = "Unlock birthday list";
+  button.addEventListener("click", openUnlockDialog);
+  wrapper.append(icon, heading, copy, button);
+  listState.append(wrapper);
+  listState.hidden = false;
+}
+
+function hideBirthdayList({ prompt = false } = {}) {
+  listEpoch++;
+  activeLoad = null;
+  lockEditing();
+  list.replaceChildren();
+  if (editing) clearEdit();
+  showLockedState();
+  refreshButton.disabled = true;
+  lastLoadedAt = 0;
+  updateUnlockUi();
+  if (prompt) openUnlockDialog();
+}
+
+function isCurrentListSession(epoch, password) {
+  return listEpoch === epoch && getEditingPassword() === password;
+}
+
 function makeRow(birthday) {
   const row = document.createElement("li");
   row.className = "birthday-row";
@@ -142,12 +182,13 @@ function makeRow(birthday) {
   return row;
 }
 
-async function fetchAndRenderBirthdays({ upsert = null, removedId = null } = {}) {
+async function fetchAndRenderBirthdays({ upsert = null, removedId = null } = {}, epoch, password) {
   refreshButton.disabled = true;
   listState.hidden = false;
   listState.textContent = "Loading birthdays...";
   try {
     let records = await listBirthdays();
+    if (!isCurrentListSession(epoch, password)) return;
     if (upsert) records = [...records.filter((record) => String(record.id) !== String(upsert.id)), upsert];
     if (removedId !== null) records = records.filter((record) => String(record.id) !== String(removedId));
     const birthdays = sortBirthdays(records, todayInKarachi());
@@ -155,29 +196,46 @@ async function fetchAndRenderBirthdays({ upsert = null, removedId = null } = {})
     if (birthdays.length) listState.hidden = true;
     else showEmptyState();
   } catch (error) {
+    if (listEpoch !== epoch) return;
+    if (error?.status === 401 || error?.status === 403) {
+      hideBirthdayList({ prompt: true });
+      return;
+    }
+    if (!isCurrentListSession(epoch, password)) return;
     list.replaceChildren();
     listState.textContent = `${error instanceof Error ? error.message : "Could not load birthdays."} Use the refresh button to try again.`;
     listState.hidden = false;
   } finally {
-    lastLoadedAt = Date.now();
-    refreshButton.disabled = false;
-    updateUnlockUi();
+    if (isCurrentListSession(epoch, password)) {
+      lastLoadedAt = Date.now();
+      refreshButton.disabled = false;
+      updateUnlockUi();
+    }
   }
 }
 
 async function loadBirthdays(options = {}) {
+  const password = getEditingPassword();
+  if (!password) { hideBirthdayList(); return; }
   if (activeLoad) {
     if (!options.upsert && options.removedId === undefined) return;
     await activeLoad;
+    if (getEditingPassword() !== password) return;
   }
-  const task = fetchAndRenderBirthdays(options);
+  const epoch = listEpoch;
+  const task = fetchAndRenderBirthdays(options, epoch, password);
   activeLoad = task;
   try { await task; }
   finally { if (activeLoad === task) activeLoad = null; }
 }
 
 function refreshOnReturn() {
-  if (!document.hidden && Date.now() - lastLoadedAt > 1500) loadBirthdays();
+  if (document.hidden) return;
+  if (!getEditingPassword()) {
+    if (list.childElementCount || !refreshButton.disabled) hideBirthdayList();
+    return;
+  }
+  if (Date.now() - lastLoadedAt > 1500) loadBirthdays();
 }
 
 function readForm() {
@@ -227,9 +285,12 @@ async function saveBirthday() {
     await loadBirthdays({ upsert: saved });
     setFormStatus(wasEditing ? "Birthday updated." : "Birthday added.");
   } catch (error) {
-    updateUnlockUi();
     setFormStatus(error instanceof Error ? error.message : "Could not save birthday.", true);
-    if (error?.status === 401) { pendingAction = "save"; openUnlockDialog(); }
+    if (error?.status === 401 || error?.status === 403) {
+      pendingAction = wasEditing ? null : "save";
+      hideBirthdayList({ prompt: true });
+      if (wasEditing) setFormStatus("Unlock and select the birthday again to edit it.", true);
+    } else updateUnlockUi();
   } finally {
     saving = false;
     submitButton.disabled = false;
@@ -257,9 +318,12 @@ async function removeBirthday({ confirmed = false } = {}) {
     await loadBirthdays({ removedId });
     setFormStatus("Birthday removed.");
   } catch (error) {
-    updateUnlockUi();
     setFormStatus(error instanceof Error ? error.message : "Could not remove birthday.", true);
-    if (error?.status === 401) { pendingAction = "remove"; openUnlockDialog(); }
+    if (error?.status === 401 || error?.status === 403) {
+      pendingAction = null;
+      hideBirthdayList({ prompt: true });
+      setFormStatus("Unlock and select the birthday again to remove it.", true);
+    } else updateUnlockUi();
   } finally {
     saving = false;
     submitButton.disabled = false;
@@ -286,23 +350,31 @@ $("connection-form").addEventListener("submit", async (event) => {
   setDialogStatus("Checking password...");
   try {
     await unlockEditing(passwordInput.value);
+    listEpoch++;
+    activeLoad = null;
+    list.replaceChildren();
+    listState.textContent = "Loading birthdays...";
+    listState.hidden = false;
+    refreshButton.disabled = true;
     updateUnlockUi();
     const requested = pendingAction;
     pendingAction = null;
     unlockDialog.close();
     passwordInput.value = "";
     setFormStatus("Editing unlocked for this tab.");
+    await loadBirthdays();
+    if (!getEditingPassword()) return;
     if (requested === "save") await saveBirthday();
     if (requested === "remove") await removeBirthday({ confirmed: true });
   } catch (error) {
+    if (error?.status === 401 || error?.status === 403) hideBirthdayList();
     setDialogStatus(error instanceof Error ? error.message : "Could not unlock editing.", true);
   } finally {
     button.disabled = false;
   }
 });
 $("disconnect-button").addEventListener("click", () => {
-  lockEditing();
-  updateUnlockUi();
+  hideBirthdayList();
   unlockDialog.close();
   setFormStatus("Editing locked for this tab.");
 });
@@ -314,4 +386,5 @@ $("email-state").textContent = config.emailEnabled
 $("email-state").classList.toggle("is-ready", config.emailEnabled);
 updateUnlockUi();
 setDayOptions();
-loadBirthdays();
+if (getEditingPassword()) loadBirthdays();
+else hideBirthdayList();

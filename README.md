@@ -1,10 +1,10 @@
 # Birthday Reminder web app
 
-This is a static web app for GitHub Pages. The page reads birthday entries from the [reminder API](https://birthday-reminder-api-nafa.kypsamar.chatgpt.site). Viewing the list needs no login. Each entry contains a name, month, and day.
+This is a static web app for GitHub Pages. The page reads birthday entries from the [reminder API](https://birthday-reminder-api-nafa.kypsamar.chatgpt.site) after the owner unlocks with a password. Each entry contains a name, month, and day.
 
 ## Editing
 
-The owner enters the editing password in **Unlock editing** once per browser tab. The app checks it with `POST /api/unlock` and keeps it in `sessionStorage` for that tab. Unlocking and protected changes send the password only in the `X-Edit-Password` request header. It is never included in a URL or this repository. **Lock editing** clears the tab's saved password.
+The owner enters the editing password in **Unlock editing** once per browser tab. The app checks it with `POST /api/unlock` and keeps it in `sessionStorage` for that tab. It makes no birthday list request before unlocking; every `GET /api/birthdays` and protected change sends the password in the `X-Edit-Password` request header. It is never included in a URL or this repository. **Lock editing** clears the password and visible list. A rejected password also clears the list and asks the owner to unlock again. The API must enforce the same password check on `GET /api/birthdays`.
 
 After unlocking, the owner can add, edit, and remove birthdays directly on the page. Each birthday stays saved until the owner removes it, and its two reminders repeat automatically every year. No GitHub account or token is needed for daily use. The app does not store a sample birthday as real data.
 
