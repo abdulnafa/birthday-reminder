@@ -6,7 +6,7 @@ This is a static web app for GitHub Pages. The page reads birthday entries from 
 
 The owner enters the editing password in **Unlock editing** once per browser tab. The app checks it with `POST /api/unlock` and keeps it in `sessionStorage` for that tab. Unlocking and protected changes send the password only in the `X-Edit-Password` request header. It is never included in a URL or this repository. **Lock editing** clears the tab's saved password.
 
-After unlocking, the owner can add, edit, and remove birthdays directly on the page. No GitHub account or token is needed for daily use. The app does not store a sample birthday as real data.
+After unlocking, the owner can add, edit, and remove birthdays directly on the page. Each birthday stays saved until the owner removes it, and its two reminders repeat automatically every year. No GitHub account or token is needed for daily use. The app does not store a sample birthday as real data.
 
 ## Email delivery
 
