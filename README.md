@@ -10,7 +10,7 @@ After unlocking, the owner can add, edit, and remove birthdays directly on the p
 
 ## Email delivery
 
-The two reminder times are on the birthday's date: **12:01 AM** and **12:00 PM**, both Pakistan time (`Asia/Karachi`). The recipient is `developerabdulnafa@gmail.com`. Keep `emailEnabled` in `config.js` set to `false` until the Gmail scheduler is configured and a live email send is verified.
+The two reminder times are on the birthday's date: **12:01 AM** and **12:00 PM**, both Pakistan time (`Asia/Karachi`). The recipient is `developerabdulnafa@gmail.com`. The GitHub Actions Gmail SMTP test email was accepted, so `emailEnabled` in `config.js` is set to `true` and the page shows email delivery as active.
 
 February 29 birthdays are observed on February 28 in non-leap years. The list uses Pakistan's calendar date for sorting and countdowns.
 
