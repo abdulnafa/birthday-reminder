@@ -1,6 +1,8 @@
-// Public settings only. Never put the editing or Gmail password in this file.
+// Public settings only. Never put a GitHub token or Gmail password in this file.
 export const config = Object.freeze({
-  apiBase: "https://birthday-reminder-api-nafa.kypsamar.chatgpt.site",
+  githubOwner: "abdulnafa",
+  githubRepo: "birthday-reminder-scheduler",
+  birthdaysPath: "data/birthdays.json",
   recipient: "developerabdulnafa@gmail.com",
   emailEnabled: true,
 });

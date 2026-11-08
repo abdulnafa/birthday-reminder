@@ -19,85 +19,107 @@ after(() => {
   globalThis.sessionStorage = originalStorage;
 });
 
-const json = (value, status = 200) => new Response(JSON.stringify(value), {
-  status, headers: { "Content-Type": "application/json" },
-});
-const noContent = () => new Response(null, { status: 204 });
 const sample = { id: "birthday-12", name: "Ayesha", month: 11, day: 14 };
+const fileUrl = "https://api.github.com/repos/abdulnafa/birthday-reminder-scheduler/contents/data/birthdays.json";
 
-test("never requests birthdays before the password is unlocked", async () => {
+function encodeStore(birthdays, sha = "abc123") {
+  const payload = `${JSON.stringify({ version: 1, birthdays }, null, 2)}\n`;
+  return {
+    sha,
+    content: Buffer.from(payload, "utf8").toString("base64"),
+  };
+}
+
+function json(value, status = 200) {
+  return new Response(JSON.stringify(value), {
+    status, headers: { "Content-Type": "application/json" },
+  });
+}
+
+test("never requests birthdays before the token is unlocked", async () => {
   let requests = 0;
-  globalThis.fetch = async () => { requests++; return json({ birthdays: [sample] }); };
+  globalThis.fetch = async () => { requests++; return json(encodeStore([sample])); };
   await assert.rejects(listBirthdays(), { name: "BirthdayApiError", status: 401 });
   assert.equal(requests, 0);
 });
 
-test("loads birthdays only with the saved password in the request header", async () => {
-  values.set("birthday-reminder:edit-password:v1", "example-test-password");
+test("loads birthdays only with the saved GitHub token", async () => {
+  values.set("birthday-reminder:github-token:v1", "example-test-token");
   globalThis.fetch = async (url, options) => {
-    assert.equal(String(url), "https://birthday-reminder-api-nafa.kypsamar.chatgpt.site/api/birthdays");
+    assert.equal(String(url), fileUrl);
     assert.equal(options.method, "GET");
-    assert.equal(options.headers["X-Edit-Password"], "example-test-password");
-    assert.ok(!String(url).includes("example-test-password"));
-    return json({ birthdays: [sample] });
+    assert.equal(options.headers.Authorization, "Bearer example-test-token");
+    return json(encodeStore([sample]));
   };
   assert.deepEqual(await listBirthdays(), [sample]);
 });
 
-test("an unauthorized birthday list clears the saved password", async () => {
-  values.set("birthday-reminder:edit-password:v1", "expired-test-password");
+test("an unauthorized birthday list clears the saved token", async () => {
+  values.set("birthday-reminder:github-token:v1", "expired-test-token");
   globalThis.fetch = async (_url, options) => {
-    assert.equal(options.headers["X-Edit-Password"], "expired-test-password");
-    return json({ error: "Unauthorized" }, 401);
+    assert.equal(options.headers.Authorization, "Bearer expired-test-token");
+    return json({ message: "Bad credentials" }, 401);
   };
   await assert.rejects(listBirthdays(), { name: "BirthdayApiError", status: 401 });
   assert.equal(getEditingPassword(), null);
 });
 
-test("verifies the password before keeping it in session storage", async () => {
+test("verifies the token before keeping it in session storage", async () => {
   globalThis.fetch = async (url, options) => {
-    assert.equal(String(url), "https://birthday-reminder-api-nafa.kypsamar.chatgpt.site/api/unlock");
-    assert.equal(options.method, "POST");
-    assert.equal(options.headers["X-Edit-Password"], "example-test-password");
+    assert.equal(String(url), fileUrl);
+    assert.equal(options.method, "GET");
+    assert.equal(options.headers.Authorization, "Bearer example-test-token");
     assert.equal(options.body, undefined);
-    return noContent();
+    return json(encodeStore([]));
   };
-  await unlockEditing("example-test-password");
-  assert.equal(getEditingPassword(), "example-test-password");
+  await unlockEditing("example-test-token");
+  assert.equal(getEditingPassword(), "example-test-token");
   lockEditing();
   assert.equal(getEditingPassword(), null);
 });
 
-test("adds, changes, and removes birthdays through the protected API", async () => {
-  values.set("birthday-reminder:edit-password:v1", "example-test-password");
-  const requests = [];
+test("adds, changes, and removes birthdays through the private JSON file", async () => {
+  values.set("birthday-reminder:github-token:v1", "example-test-token");
+  let store = [sample];
+  let sha = "sha-1";
+  const methods = [];
   globalThis.fetch = async (url, options) => {
-    requests.push({ url: String(url), method: options.method, password: options.headers["X-Edit-Password"], body: options.body && JSON.parse(options.body) });
-    return options.method === "DELETE" ? noContent() : json({ birthday: sample });
+    assert.equal(String(url), fileUrl);
+    methods.push(options.method);
+    assert.equal(options.headers.Authorization, "Bearer example-test-token");
+    if (options.method === "GET") return json(encodeStore(store, sha));
+    const body = JSON.parse(options.body);
+    assert.equal(body.sha, sha);
+    const next = JSON.parse(Buffer.from(body.content, "base64").toString("utf8"));
+    store = next.birthdays;
+    sha = "sha-next";
+    return json({ content: encodeStore(store, sha) });
   };
-  await createBirthday({ name: "Ayesha", month: 11, day: 14 });
-  await updateBirthday("birthday-12", { name: "Ayesha B", month: 11, day: 15 });
-  await deleteBirthday("birthday-12");
-  assert.deepEqual(requests.map((item) => item.method), ["POST", "PATCH", "DELETE"]);
-  assert.deepEqual(requests[0].body, { name: "Ayesha", month: 11, day: 14 });
-  assert.deepEqual(requests[1].body, { name: "Ayesha B", month: 11, day: 15 });
-  assert.equal(requests[2].body, undefined);
-  assert.ok(requests.every((item) => item.password === "example-test-password"));
-  assert.ok(requests.every((item) => !item.url.includes("example-test-password")));
+  const created = await createBirthday({ name: "Bilal", month: 3, day: 1 });
+  assert.equal(created.name, "Bilal");
+  assert.match(created.id, /^b-[a-z0-9]+$/i);
+  await updateBirthday(sample.id, { name: "Ayesha B", month: 11, day: 15 });
+  await deleteBirthday(sample.id);
+  assert.deepEqual(methods, ["GET", "PUT", "GET", "PUT", "GET", "PUT"]);
+  assert.equal(store.length, 1);
+  assert.equal(store[0].name, "Bilal");
 });
 
-test("clears the session password after an unauthorized write", async () => {
-  values.set("birthday-reminder:edit-password:v1", "expired-test-password");
-  globalThis.fetch = async () => json({ error: "Unauthorized" }, 401);
+test("clears the session token after an unauthorized write", async () => {
+  values.set("birthday-reminder:github-token:v1", "expired-test-token");
+  globalThis.fetch = async (_url, options) => {
+    if (options.method === "GET") return json(encodeStore([]));
+    return json({ message: "Bad credentials" }, 401);
+  };
   await assert.rejects(createBirthday({ name: "Ali", month: 3, day: 1 }), {
     name: "BirthdayApiError", status: 401,
   });
   assert.equal(getEditingPassword(), null);
 });
 
-test("does not save a password when unlock is rejected", async () => {
-  globalThis.fetch = async () => json({ error: "Unauthorized" }, 401);
-  await assert.rejects(unlockEditing("wrong-test-password"), {
+test("does not save a token when unlock is rejected", async () => {
+  globalThis.fetch = async () => json({ message: "Bad credentials" }, 401);
+  await assert.rejects(unlockEditing("wrong-test-token"), {
     name: "BirthdayApiError", status: 401,
   });
   assert.equal(getEditingPassword(), null);

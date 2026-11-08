@@ -1,19 +1,38 @@
 # Birthday Reminder web app
 
-This is a static web app for GitHub Pages. The page reads birthday entries from the [reminder API](https://birthday-reminder-api-nafa.kypsamar.chatgpt.site) after the owner unlocks with a password. Each entry contains a name, month, and day.
+This is a static web app for GitHub Pages. Birthday entries live in the private
+scheduler repository as `data/birthdays.json`. After the owner unlocks with a
+GitHub token that can read and write that file, the page can view, add, edit,
+and remove birthdays. Each entry contains a name, month, and day.
 
 ## Editing
 
-The owner enters the editing password in **Unlock editing** once per browser tab. The app checks it with `POST /api/unlock` and keeps it in `sessionStorage` for that tab. It makes no birthday list request before unlocking; every `GET /api/birthdays` and protected change sends the password in the `X-Edit-Password` request header. It is never included in a URL or this repository. **Lock editing** clears the password and visible list. A rejected password also clears the list and asks the owner to unlock again. The API must enforce the same password check on `GET /api/birthdays`.
+The owner enters a GitHub token in **Unlock editing** once per browser tab. A
+fine-grained personal access token with **Contents: Read and write** on
+`abdulnafa/birthday-reminder-scheduler` is enough. The app checks it by reading
+`data/birthdays.json` through the GitHub Contents API and keeps the token in
+`sessionStorage` for that tab only. It makes no birthday list request before
+unlocking. **Lock editing** clears the token and visible list. A rejected token
+also clears the list and asks the owner to unlock again.
 
-After unlocking, the owner can add, edit, and remove birthdays directly on the page. Each birthday stays saved until the owner removes it, and its two reminders repeat automatically every year. No GitHub account or token is needed for daily use. The app does not store a sample birthday as real data.
+After unlocking, the owner can add, edit, and remove birthdays directly on the
+page. Each change commits an update to `data/birthdays.json` in the private
+repo. Each birthday stays saved until the owner removes it, and its two
+reminders repeat automatically every year. The app does not store a sample
+birthday as real data.
 
 ## Email delivery
 
-The two reminder times are on the birthday's date: **12:01 AM** and **12:00 PM**, both Pakistan time (`Asia/Karachi`). The recipient is `developerabdulnafa@gmail.com`. The GitHub Actions Gmail SMTP test email was accepted, so `emailEnabled` in `config.js` is set to `true` and the page shows email delivery as active.
+The two reminder times are on the birthday's date: **12:01 AM** and **12:00 PM**,
+both Pakistan time (`Asia/Karachi`). The recipient is
+`developerabdulnafa@gmail.com`. The GitHub Actions Gmail SMTP test email was
+accepted, so `emailEnabled` in `config.js` is set to `true` and the page shows
+email delivery as active.
 
-February 29 birthdays are observed on February 28 in non-leap years. The list uses Pakistan's calendar date for sorting and countdowns.
+February 29 birthdays are observed on February 28 in non-leap years. The list
+uses Pakistan's calendar date for sorting and countdowns.
 
 ## Check the browser code
 
-With Node.js installed, run `node --test birthday.test.js api.test.js` from this directory. The app has no build step or runtime package dependencies.
+With Node.js installed, run `node --test birthday.test.js api.test.js` from this
+directory. The app has no build step or runtime package dependencies.

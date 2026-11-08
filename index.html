@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#fffcf7">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://birthday-reminder-api-nafa.kypsamar.chatgpt.site; base-uri 'self'; object-src 'none'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src https://api.github.com; base-uri 'self'; object-src 'none'; form-action 'self'">
     <meta name="description" content="Keep birthdays in one place, with reminders at 12:01 AM and 12:00 PM Pakistan time.">
     <title>Birthday Reminder</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
@@ -67,7 +67,7 @@
               </div>
               <div class="connection-inline">
                 <button class="connection-action" id="open-connection" type="button">Unlock editing</button>
-                <span id="connection-copy">Enter your password to view and edit birthdays.</span>
+                <span id="connection-copy">Enter your GitHub token to view and edit birthdays.</span>
               </div>
               <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
             </form>
@@ -95,7 +95,7 @@
           <div class="recipient"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="m3 7 9 6 9-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="recipient"></span></div>
           <p class="email-state" id="email-state"></p>
         </section>
-        <p class="timezone-note">All reminder times are Pakistan time (PKT). The birthday list opens after password unlock.</p>
+        <p class="timezone-note">All reminder times are Pakistan time (PKT). The birthday list opens after token unlock.</p>
       </main>
     </div>
 
@@ -105,10 +105,10 @@
           <h2 id="connection-title">Unlock editing</h2>
           <button class="dialog-close" id="close-connection" type="button" aria-label="Close unlock dialog">&times;</button>
         </div>
-        <p>Enter the editing password to view, add, change, or remove birthdays. The list stays hidden until unlocked.</p>
-        <label for="edit-password">Editing password</label>
-        <input id="edit-password" type="password" autocomplete="off" spellcheck="false" placeholder="Enter password" required>
-        <p class="token-note">Kept only for this tab's session. Lock editing to clear it.</p>
+        <p>Enter a GitHub token with access to the private birthday repo to view, add, change, or remove birthdays. The list stays hidden until unlocked.</p>
+        <label for="edit-password">GitHub token</label>
+        <input id="edit-password" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_... or github_pat_..." required>
+        <p class="token-note">Kept only for this tab's session. Lock editing to clear it. Use a fine-grained token with Contents read/write on the private scheduler repo.</p>
         <p class="dialog-status" id="dialog-status" role="status" aria-live="polite"></p>
         <button class="primary-button dialog-submit" id="save-connection" type="submit">Unlock editing</button>
         <div class="dialog-links">

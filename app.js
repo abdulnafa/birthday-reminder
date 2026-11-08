@@ -58,9 +58,9 @@ function updateUnlockUi() {
   unlockInline.textContent = unlocked ? "Editing unlocked" : "Unlock editing";
   $("connection-copy").textContent = unlocked
     ? "Your birthday list is visible in this tab."
-    : "Enter your password to view and edit birthdays.";
+    : "Enter your GitHub token to view and edit birthdays.";
   $("disconnect-button").hidden = !unlocked;
-  $("save-connection").textContent = unlocked ? "Change password" : "Unlock editing";
+  $("save-connection").textContent = unlocked ? "Change token" : "Unlock editing";
   $("connection-title").textContent = unlocked ? "Manage editing" : "Unlock editing";
 }
 
@@ -126,7 +126,7 @@ function showLockedState() {
   const heading = document.createElement("h3");
   heading.textContent = "Birthday list locked";
   const copy = document.createElement("p");
-  copy.textContent = "Enter your password to view birthdays in this tab.";
+  copy.textContent = "Enter your GitHub token to view birthdays in this tab.";
   const button = document.createElement("button");
   button.className = "connection-action locked-unlock";
   button.type = "button";
@@ -347,7 +347,7 @@ $("connection-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const button = $("save-connection");
   button.disabled = true;
-  setDialogStatus("Checking password...");
+  setDialogStatus("Checking GitHub token...");
   try {
     await unlockEditing(passwordInput.value);
     listEpoch++;
