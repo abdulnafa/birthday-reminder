@@ -2,9 +2,11 @@ import { config } from "./config.js";
 import { isValidBirthday, normalizeName, parseBirthdayRecord } from "./birthday.js";
 
 const storageKey = "birthday-reminder:github-token:v1";
-const contentsUrl = new URL(
-  `https://api.github.com/repos/${config.githubOwner}/${config.githubRepo}/contents/${config.birthdaysPath}`,
+const repoApiUrl = new URL(
+  `https://api.github.com/repos/${config.githubOwner}/${config.githubRepo}`,
 );
+const contentsUrl = new URL(`${repoApiUrl.href}/contents/${config.birthdaysPath}`);
+const accessHint = `Give the token Contents read/write on ${config.githubOwner}/${config.githubRepo}, then unlock again.`;
 
 // Clear secrets left by older page versions.
 try {
@@ -61,20 +63,19 @@ export function lockEditing() {
 }
 
 function errorForStatus(status) {
-  if (status === 401 || status === 403) {
-    return new BirthdayApiError("GitHub token is missing access to the private birthday repo. Unlock again.", status);
+  if (status === 401 || status === 403 || status === 404) {
+    return new BirthdayApiError(`GitHub token cannot access the private birthday repo. ${accessHint}`, status);
   }
-  if (status === 404) return new BirthdayApiError("Birthday file was not found in the private repo.", status);
   if (status === 409) return new BirthdayApiError("This birthday changed elsewhere. Refresh the list and try again.", status);
   if (status === 422) return new BirthdayApiError("GitHub rejected this birthday update. Check the name and date.", status);
   if (status === 429) return new BirthdayApiError("Too many GitHub requests. Try again shortly.", status);
   return new BirthdayApiError("The birthday repo is unavailable right now. Try again.", status);
 }
 
-async function githubFetch(token, { method = "GET", body } = {}) {
+async function githubFetch(token, url, { method = "GET", body } = {}) {
   let response;
   try {
-    response = await timedFetch(contentsUrl, {
+    response = await timedFetch(url, {
       method,
       cache: "no-store",
       headers: {
@@ -89,6 +90,16 @@ async function githubFetch(token, { method = "GET", body } = {}) {
     throw new BirthdayApiError("Could not reach GitHub. Check your connection and try again.");
   }
   return response;
+}
+
+async function requireRepoAccess(token) {
+  const response = await githubFetch(token, repoApiUrl);
+  if (!response.ok) {
+    if ((response.status === 401 || response.status === 403 || response.status === 404) && token === getEditingPassword()) {
+      lockEditing();
+    }
+    throw errorForStatus(response.status === 404 ? 403 : response.status);
+  }
 }
 
 function parseStore(payload) {
@@ -114,7 +125,8 @@ function parseStore(payload) {
 }
 
 async function readStore(token) {
-  const response = await githubFetch(token);
+  await requireRepoAccess(token);
+  const response = await githubFetch(token, contentsUrl);
   if (response.status === 404) return { birthdays: [], sha: null };
   if (!response.ok) {
     if ((response.status === 401 || response.status === 403) && token === getEditingPassword()) lockEditing();
@@ -134,7 +146,7 @@ async function readStore(token) {
 
 async function writeStore(token, birthdays, sha, message) {
   const payload = `${JSON.stringify({ version: 1, birthdays }, null, 2)}\n`;
-  const response = await githubFetch(token, {
+  const response = await githubFetch(token, contentsUrl, {
     method: "PUT",
     body: {
       message,
@@ -143,7 +155,9 @@ async function writeStore(token, birthdays, sha, message) {
     },
   });
   if (!response.ok) {
-    if ((response.status === 401 || response.status === 403) && token === getEditingPassword()) lockEditing();
+    if ((response.status === 401 || response.status === 403 || response.status === 404) && token === getEditingPassword()) {
+      lockEditing();
+    }
     throw errorForStatus(response.status);
   }
 }

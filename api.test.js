@@ -20,7 +20,8 @@ after(() => {
 });
 
 const sample = { id: "birthday-12", name: "Ayesha", month: 11, day: 14 };
-const fileUrl = "https://api.github.com/repos/abdulnafa/birthday-reminder-scheduler/contents/data/birthdays.json";
+const repoUrl = "https://api.github.com/repos/abdulnafa/birthday-reminder-scheduler";
+const fileUrl = `${repoUrl}/contents/data/birthdays.json`;
 
 function encodeStore(birthdays, sha = "abc123") {
   const payload = `${JSON.stringify({ version: 1, birthdays }, null, 2)}\n`;
@@ -46,9 +47,10 @@ test("never requests birthdays before the token is unlocked", async () => {
 test("loads birthdays only with the saved GitHub token", async () => {
   values.set("birthday-reminder:github-token:v1", "example-test-token");
   globalThis.fetch = async (url, options) => {
+    assert.equal(options.headers.Authorization, "Bearer example-test-token");
+    if (String(url) === repoUrl) return json({ full_name: "abdulnafa/birthday-reminder-scheduler" });
     assert.equal(String(url), fileUrl);
     assert.equal(options.method, "GET");
-    assert.equal(options.headers.Authorization, "Bearer example-test-token");
     return json(encodeStore([sample]));
   };
   assert.deepEqual(await listBirthdays(), [sample]);
@@ -64,11 +66,23 @@ test("an unauthorized birthday list clears the saved token", async () => {
   assert.equal(getEditingPassword(), null);
 });
 
+test("rejects unlock when the token cannot see the private repo", async () => {
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), repoUrl);
+    return json({ message: "Not Found" }, 404);
+  };
+  await assert.rejects(unlockEditing("wrong-repo-token"), {
+    name: "BirthdayApiError", status: 403,
+  });
+  assert.equal(getEditingPassword(), null);
+});
+
 test("verifies the token before keeping it in session storage", async () => {
   globalThis.fetch = async (url, options) => {
+    assert.equal(options.headers.Authorization, "Bearer example-test-token");
+    if (String(url) === repoUrl) return json({ full_name: "abdulnafa/birthday-reminder-scheduler" });
     assert.equal(String(url), fileUrl);
     assert.equal(options.method, "GET");
-    assert.equal(options.headers.Authorization, "Bearer example-test-token");
     assert.equal(options.body, undefined);
     return json(encodeStore([]));
   };
@@ -84,9 +98,10 @@ test("adds, changes, and removes birthdays through the private JSON file", async
   let sha = "sha-1";
   const methods = [];
   globalThis.fetch = async (url, options) => {
+    assert.equal(options.headers.Authorization, "Bearer example-test-token");
+    if (String(url) === repoUrl) return json({ full_name: "abdulnafa/birthday-reminder-scheduler" });
     assert.equal(String(url), fileUrl);
     methods.push(options.method);
-    assert.equal(options.headers.Authorization, "Bearer example-test-token");
     if (options.method === "GET") return json(encodeStore(store, sha));
     const body = JSON.parse(options.body);
     assert.equal(body.sha, sha);
@@ -107,7 +122,8 @@ test("adds, changes, and removes birthdays through the private JSON file", async
 
 test("clears the session token after an unauthorized write", async () => {
   values.set("birthday-reminder:github-token:v1", "expired-test-token");
-  globalThis.fetch = async (_url, options) => {
+  globalThis.fetch = async (url, options) => {
+    if (String(url) === repoUrl) return json({ full_name: "abdulnafa/birthday-reminder-scheduler" });
     if (options.method === "GET") return json(encodeStore([]));
     return json({ message: "Bad credentials" }, 401);
   };
