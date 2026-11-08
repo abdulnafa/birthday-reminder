@@ -21,6 +21,7 @@ after(() => {
 
 const sample = { id: "birthday-12", name: "Ayesha", month: 11, day: 14 };
 const repoUrl = "https://api.github.com/repos/abdulnafa/birthday-reminder-scheduler";
+const dirUrl = `${repoUrl}/contents/data`;
 const fileUrl = `${repoUrl}/contents/data/birthdays.json`;
 
 function encodeStore(birthdays, sha = "abc123") {
@@ -77,6 +78,17 @@ test("rejects unlock when the token cannot see the private repo", async () => {
   assert.equal(getEditingPassword(), null);
 });
 
+test("rejects unlock when Contents permission is missing", async () => {
+  globalThis.fetch = async (url) => {
+    if (String(url) === repoUrl) return json({ full_name: "abdulnafa/birthday-reminder-scheduler" });
+    return json({ message: "Not Found" }, 404);
+  };
+  await assert.rejects(unlockEditing("metadata-only-token"), {
+    name: "BirthdayApiError", status: 403,
+  });
+  assert.equal(getEditingPassword(), null);
+});
+
 test("verifies the token before keeping it in session storage", async () => {
   globalThis.fetch = async (url, options) => {
     assert.equal(options.headers.Authorization, "Bearer example-test-token");
@@ -90,6 +102,17 @@ test("verifies the token before keeping it in session storage", async () => {
   assert.equal(getEditingPassword(), "example-test-token");
   lockEditing();
   assert.equal(getEditingPassword(), null);
+});
+
+test("treats a missing birthday file as empty only when the folder is readable", async () => {
+  values.set("birthday-reminder:github-token:v1", "example-test-token");
+  globalThis.fetch = async (url) => {
+    if (String(url) === repoUrl) return json({ full_name: "abdulnafa/birthday-reminder-scheduler" });
+    if (String(url) === fileUrl) return json({ message: "Not Found" }, 404);
+    if (String(url) === dirUrl) return json([{ name: "sent.json", path: "data/sent.json" }]);
+    assert.fail(`Unexpected URL ${url}`);
+  };
+  assert.deepEqual(await listBirthdays(), []);
 });
 
 test("adds, changes, and removes birthdays through the private JSON file", async () => {

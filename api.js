@@ -6,6 +6,9 @@ const repoApiUrl = new URL(
   `https://api.github.com/repos/${config.githubOwner}/${config.githubRepo}`,
 );
 const contentsUrl = new URL(`${repoApiUrl.href}/contents/${config.birthdaysPath}`);
+const contentsDirUrl = new URL(
+  `${repoApiUrl.href}/contents/${config.birthdaysPath.split("/").slice(0, -1).join("/")}`,
+);
 const accessHint = `Give the token Contents read/write on ${config.githubOwner}/${config.githubRepo}, then unlock again.`;
 
 // Clear secrets left by older page versions.
@@ -127,7 +130,16 @@ function parseStore(payload) {
 async function readStore(token) {
   await requireRepoAccess(token);
   const response = await githubFetch(token, contentsUrl);
-  if (response.status === 404) return { birthdays: [], sha: null };
+  if (response.status === 404) {
+    // GitHub often returns 404 for private Contents without permission.
+    // Confirm the parent folder is readable before treating the file as empty.
+    const folder = await githubFetch(token, contentsDirUrl);
+    if (!folder.ok) {
+      if (token === getEditingPassword()) lockEditing();
+      throw errorForStatus(folder.status === 404 ? 403 : folder.status);
+    }
+    return { birthdays: [], sha: null };
+  }
   if (!response.ok) {
     if ((response.status === 401 || response.status === 403) && token === getEditingPassword()) lockEditing();
     throw errorForStatus(response.status);
